@@ -188,7 +188,7 @@ impl SqlxDataSource for PostgresDataSource {
             "oid" => {
                 bail!("OID data type not supported")
             }
-            "char" | "varchar" | "text" | "citext" | "bpchar" | "name" | "unknown" => {
+            "char" | "varchar" | "text" | "citext" | "bpchar" | "name" | "unknown" | "bytea" => {
                 let pattern = "[a-zA-Z0-9]{0, {}}".replace(
                     "{}",
                     &format!("{}", column_info.character_maximum_length.unwrap_or(1)),
