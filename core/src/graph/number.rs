@@ -20,10 +20,8 @@ macro_rules! any_range_int_impl {
         impl AnyRange<$target> {
             fn is_empty(&self) -> bool {
                 match (&self.low, &self.high) {
-                    (Bound::Excluded(low), Bound::Included(high))
-                        | (Bound::Included(low), Bound::Excluded(high)) => low >= high,
-                    (Bound::Included(low), Bound::Included(high)) => low > high,
-                    (Bound::Excluded(low), Bound::Excluded(high)) => *low + 1 >= *high,
+                    (Bound::Unbounded, _) => false,
+                    (_, Bound::Unbounded) => false,
                     _ => false
                 }
             }
@@ -31,16 +29,15 @@ macro_rules! any_range_int_impl {
 
         impl SampleRange<$target> for AnyRange<$target> {
             fn sample_single<R: rand::RngCore + ?Sized>(self, rng: &mut R) -> $target {
-                let low = match self.low {
-                    Bound::Unbounded => panic!("cannot sample {} range unbounded on the left", stringify!($target)),
-                    Bound::Included(low) => low,
-                    Bound::Excluded(low) => low + 1
-                };
-
-                match self.high {
-                    Bound::Excluded(high) => rng.gen_range(low..high),
-                    Bound::Included(high) => rng.gen_range(low..=high),
-                    Bound::Unbounded => panic!("cannot sample {} range unbounded on the right", stringify!($target))
+                match (self.low, self.high) {
+                    (Bound::Included(low), Bound::Included(high) | Bound::Excluded(high)) if low == high => low,
+                    (Bound::Included(low) | Bound::Excluded(low), Bound::Included(high)) if low == high => high,
+                    (Bound::Included(low), Bound::Excluded(high)) => {rng.gen_range(low..high)},
+                    (Bound::Included(low), Bound::Included(high)) => {rng.gen_range(low..=high)},
+                    (Bound::Excluded(low), Bound::Included(high)) => {rng.gen_range(low + 1..=high)},
+                    (Bound::Excluded(low), Bound::Excluded(high)) => {rng.gen_range(low + 1..high)},
+                    (Bound::Unbounded, _) => panic!("cannot sample {} range unbounded on the left", stringify!($target)),
+                    (_, Bound::Unbounded) => panic!("cannot sample {} range unbounded on the right", stringify!($target)),
                 }
             }
 
@@ -60,9 +57,8 @@ macro_rules! any_range_float_impl {
         impl AnyRange<$target> {
             fn is_not_empty(&self) -> bool {
                 match (&self.low, &self.high) {
-                    (Bound::Excluded(low), Bound::Included(high))
-                        | (Bound::Included(low), Bound::Excluded(high)) => low < high,
-                    (Bound::Included(low), Bound::Included(high)) => low <= high,
+                    (Bound::Excluded(_) | Bound::Unbounded, _) => false,
+                    (_, Bound::Unbounded) => false,
                     _ => true
                 }
             }
@@ -70,22 +66,13 @@ macro_rules! any_range_float_impl {
 
         impl SampleRange<$target> for AnyRange<$target> {
             fn sample_single<R: rand::RngCore + ?Sized>(self, rng: &mut R) -> $target {
-                let low = match self.low {
-                    Bound::Excluded(_)
-                    | Bound::Unbounded => panic!("cannot sample {} range unbounded or open on the left", stringify!($target)),
-                    Bound::Included(low) => low,
-                };
-
-                let (high, include_high) = match self.high {
-                    Bound::Unbounded => panic!("cannot sample {} range unbounded on the right", stringify!($target)),
-                    Bound::Included(high) => (high, true),
-                    Bound::Excluded(high) => (high, false)
-                };
-
-                if include_high {
-                    rng.gen_range(low..=high)
-                } else {
-                    rng.gen_range(low..high)
+                match (self.low, self.high) {
+                    (Bound::Included(low), Bound::Included(high) | Bound::Excluded(high)) if low == high => low,
+                    (Bound::Included(low) | Bound::Excluded(low), Bound::Included(high)) if low == high => high,
+                    (Bound::Included(low), Bound::Excluded(high)) => {rng.gen_range(low..high)},
+                    (Bound::Included(low), Bound::Included(high)) => {rng.gen_range(low..=high)},
+                    (Bound::Excluded(_) | Bound::Unbounded, _) => panic!("cannot sample {} range unbounded or open on the left", stringify!($target)),
+                    (_, Bound::Unbounded) => panic!("cannot sample {} range unbounded on the right", stringify!($target)),
                 }
             }
 
